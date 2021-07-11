@@ -1,12 +1,7 @@
 {
-  "include": [
-    "src/**/*",
-    "test/**/*"
-  ],
-  "exclude": ["node_modules/**/*"],
   "compilerOptions": {
     "target": "ES6",
-    "module": "CommonJS",
+    "module": "ES6",
     "moduleResolution": "Node",
     "esModuleInterop": true,
     "strict": true,
@@ -15,7 +10,7 @@
     "outDir": "build",
     "baseUrl": ".",
     "paths": {
-      "@gol/*": ["src/*"]
+      "@gol/*": ["gol/*"]
     }
   }
 }
