@@ -1,5 +1,5 @@
 import { simulateLife } from "@gol/GameOfLife";
-import { Vec2 } from "@gol/Vec2";
+import { Vec2 } from "@lib/Vec2";
 
 describe('Game of Life', () => {
   test('When simulating life with no cells alive, then it remains lifeless', () => {

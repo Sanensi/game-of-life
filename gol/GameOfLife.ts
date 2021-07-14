@@ -1,4 +1,4 @@
-import { Vec2 } from "./Vec2";
+import { Vec2 } from "@lib/Vec2";
 
 export function simulateLife(aliveCells: Vec2[]): Vec2[] {
   const previousCellMap = CellMap.fromAliveCells(aliveCells);
