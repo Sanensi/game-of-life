@@ -79,21 +79,22 @@ export class Application extends ApplicationBase {
 
     const canvas_size = new Vec2(this.canvas.clientWidth, this.canvas.clientHeight);
     const cell_count = canvas_size.divide(this.scale).map(Math.floor).add(Vec2.ONE);
-    const anti_offset = cell_count.divide(2).map(Math.floor).scale(-this.scale);
+    const top_left = this.offset.divide(-this.scale).map(Math.floor);
+    const bot_right = top_left.add(cell_count);
 
     this.ctx.translate(this.offset.x, this.offset.y);
-    this.ctx.translate(anti_offset.x, anti_offset.y);
 
-    for (let i = 0; i <= cell_count.x; i++) {
-      const top = Vec2.UNIT_I.scale(i * this.scale);
-      const bot = top.add(Vec2.UNIT_J.scale(cell_count.y * this.scale));
-      this.drawLine(top, bot, "gray");
+    const gridColor = "#dedede";
+    for (let i = top_left.x; i <= bot_right.x; i++) {
+      const top = Vec2.UNIT_I.scale(i * this.scale).substract(Vec2.UNIT_J.scale(this.offset.y));
+      const bot = top.add(Vec2.UNIT_J.scale(canvas_size.y));
+      this.drawLine(top, bot, gridColor);
     }
 
-    for (let j = 0; j <= cell_count.y; j++) {
-      const left = Vec2.UNIT_J.scale(j * this.scale);
-      const right = left.add(Vec2.UNIT_I.scale(cell_count.x * this.scale));
-      this.drawLine(left, right, "gray");
+    for (let j = top_left.y; j <= bot_right.y; j++) {
+      const left = Vec2.UNIT_J.scale(j * this.scale).substract(Vec2.UNIT_I.scale(this.offset.x));
+      const right = left.add(Vec2.UNIT_I.scale(canvas_size.x));
+      this.drawLine(left, right, gridColor);
     }
 
     this.ctx.restore();
