@@ -55,10 +55,11 @@ export class Application extends ApplicationBase {
 
   protected draw() {
     this.clear();
+    this.scale > 1 && this.drawGrid();
     this.drawCells();
-    this.drawGrid();
+    this.drawAxis();
     this.ctx.fillText(`fps: ${(1000 / this.delta).toFixed(1)}`, 5, 10);
-    this.ctx.fillText(`steps: ${this.step_count}`, 5, 20);
+    this.ctx.fillText(`gen: ${this.step_count}`, 5, 20);
   }
 
   private drawCells() {
@@ -84,7 +85,9 @@ export class Application extends ApplicationBase {
 
     this.ctx.translate(this.offset.x, this.offset.y);
 
-    const gridColor = "#dedede";
+    const shade = 255 - 7.5 * (this.scale - 1);
+    const gridColor = `rgb(${shade}, ${shade}, ${shade})`;
+    
     for (let i = top_left.x; i <= bot_right.x; i++) {
       const top = Vec2.UNIT_I.scale(i * this.scale).substract(Vec2.UNIT_J.scale(this.offset.y));
       const bot = top.add(Vec2.UNIT_J.scale(canvas_size.y));
@@ -98,13 +101,22 @@ export class Application extends ApplicationBase {
     }
 
     this.ctx.restore();
-    this.ctx.save();
+  }
 
+  private drawAxis() {
+    this.ctx.save();
     this.ctx.translate(this.offset.x, this.offset.y);
 
-    const origin = Vec2.ZERO;
-    this.drawLine(origin, origin.add(Vec2.UNIT_I.scale(100)), "red");
-    this.drawLine(origin, origin.add(Vec2.UNIT_J.scale(100)), "blue");
+    const canvas_size = new Vec2(this.canvas.clientWidth, this.canvas.clientHeight);
+
+    const left = Vec2.ZERO.substract(Vec2.UNIT_I.scale(this.offset.x));
+    const right = left.add(Vec2.UNIT_I.scale(canvas_size.x));
+
+    const top = Vec2.ZERO.substract(Vec2.UNIT_J.scale(this.offset.y));
+    const bot = top.add(Vec2.UNIT_J.scale(canvas_size.y));
+
+    this.drawLine(left, right, "red");
+    this.drawLine(top, bot, "blue");
 
     this.ctx.restore();
   }
