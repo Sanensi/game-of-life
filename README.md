@@ -1,2 +1,2 @@
 # game-of-life
-Simple web-based Game of Life implementation
+Simple web-based implementation of the Game of Life
