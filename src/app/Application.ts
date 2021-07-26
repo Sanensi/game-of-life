@@ -14,10 +14,12 @@ export class Application extends ApplicationBase {
   private offset = Vec2.ZERO;
 
   private input: UserInput;
+  private speed = 10;
+  private zoom_speed = 1.05;
 
   constructor(c: HTMLCanvasElement) {
     super(c);
-    this.input = new UserInput(c); 
+    this.input = new UserInput(c);
   }
 
   protected start() {
@@ -42,24 +44,38 @@ export class Application extends ApplicationBase {
       this.step_count++;
     }
 
-    const speed = 10;
-    const zoom_speed = 1.05;
+    if (this.input.keys.right) this.offset = this.offset.substract(Vec2.UNIT_I.scale(this.speed));
+    if (this.input.keys.left) this.offset = this.offset.add(Vec2.UNIT_I.scale(this.speed));
+    if (this.input.keys.up) this.offset = this.offset.add(Vec2.UNIT_J.scale(this.speed));
+    if (this.input.keys.down) this.offset = this.offset.substract(Vec2.UNIT_J.scale(this.speed));
 
-    if (this.input.keys.right) this.offset = this.offset.substract(Vec2.UNIT_I.scale(speed));
-    if (this.input.keys.left) this.offset = this.offset.add(Vec2.UNIT_I.scale(speed));
-    if (this.input.keys.up) this.offset = this.offset.add(Vec2.UNIT_J.scale(speed));
-    if (this.input.keys.down) this.offset = this.offset.substract(Vec2.UNIT_J.scale(speed));
-    if (this.input.keys.e) this.scale *= zoom_speed;
-    if (this.input.keys.q) this.scale /= zoom_speed;
+    const focus_point = this.screenToGameSpace(new Vec2(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2));
+    
+    if (this.input.keys.e) {
+      const zoom_offset = focus_point.scale(this.scale);
+      this.scale *= this.zoom_speed;
+      this.offset = this.offset.substract(zoom_offset.scale(this.zoom_speed).substract(zoom_offset));
+    }
+    if (this.input.keys.q) {
+      this.scale /= this.zoom_speed;
+      const zoom_offset = focus_point.scale(this.scale);
+      this.offset = this.offset.add(zoom_offset.scale(this.zoom_speed).substract(zoom_offset));
+    }
   }
 
   protected draw() {
     this.clear();
+    
     this.scale > 1 && this.drawGrid();
     this.drawCells();
     this.drawAxis();
+
+    const focus_point = this.screenToGameSpace(new Vec2(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2));
+
     this.ctx.fillText(`fps: ${(1000 / this.delta).toFixed(1)}`, 5, 10);
     this.ctx.fillText(`gen: ${this.step_count}`, 5, 20);
+    this.ctx.fillText(`{ x: ${focus_point.x.toFixed(2)}, y: ${focus_point.y.toFixed(2)} }`, 5, 30);
+    this.ctx.fillText(`scale: ${this.scale.toPrecision(3)}`, 5, 40);
   }
 
   private drawCells() {
@@ -77,13 +93,12 @@ export class Application extends ApplicationBase {
 
   private drawGrid() {
     this.ctx.save();
+    this.ctx.translate(this.offset.x, this.offset.y);
 
     const canvas_size = new Vec2(this.canvas.clientWidth, this.canvas.clientHeight);
     const cell_count = canvas_size.divide(this.scale).map(Math.floor).add(Vec2.ONE);
     const top_left = this.offset.divide(-this.scale).map(Math.floor);
     const bot_right = top_left.add(cell_count);
-
-    this.ctx.translate(this.offset.x, this.offset.y);
 
     const shade = 255 - 7.5 * (this.scale - 1);
     const gridColor = `rgb(${shade}, ${shade}, ${shade})`;
@@ -127,5 +142,9 @@ export class Application extends ApplicationBase {
     this.ctx.lineTo(to.x, to.y);
     this.ctx.strokeStyle = color;
     this.ctx.stroke();
+  }
+
+  private screenToGameSpace(p: Vec2) {
+    return p.substract(this.offset).scale(1 / this.scale);
   }
 }

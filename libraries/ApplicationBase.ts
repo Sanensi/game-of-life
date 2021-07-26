@@ -7,7 +7,11 @@ export abstract class ApplicationBase {
 
   constructor(c: HTMLCanvasElement) {
     this.canvas = c;
-    this.ctx = c.getContext("2d") as CanvasRenderingContext2D;
+    
+    const ctx = c.getContext("2d");
+    if (ctx === null) throw new Error("Could not get a CanvasRenderingContext2D from the HTMLCanvasElement");
+
+    this.ctx = ctx;
   }
 
   protected start() { };
