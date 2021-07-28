@@ -28,8 +28,14 @@ export class Application extends ApplicationBase {
 
     for (let i = 0; i <= cells; i++) {
       // cell position in [-25, 25[
-      const x = Math.floor(50 * Math.random()) - 25;
-      const y = Math.floor(50 * Math.random()) - 25;
+      // const x = Math.floor(50 * Math.random()) - 25;
+      // const y = Math.floor(50 * Math.random()) - 25;
+      
+      const r = Math.floor(25 * Math.random());
+      const theta = Math.random() * 2 * Math.PI;
+
+      const x = Math.floor(Math.cos(theta) * r);
+      const y = Math.floor(Math.sin(theta) * r);
 
       this.life.push(new Vec2(x, y));
     }
