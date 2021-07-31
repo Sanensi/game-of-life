@@ -2,8 +2,11 @@ import { ApplicationBase } from "@lib/ApplicationBase";
 import { Vec2 } from "@lib/Vec2";
 import { simulateLife } from "@gol/GameOfLife";
 import { UserInput } from "@lib/UserInput";
+import { GolDrawer } from "./GolDrawer";
 
 export class Application extends ApplicationBase {
+  private readonly drawer: GolDrawer;
+
   private life: Vec2[] = [];
   private stepsPerSecond = 0;
   private previousStep_ts = 0;
@@ -26,6 +29,7 @@ export class Application extends ApplicationBase {
 
   constructor(c: HTMLCanvasElement) {
     super(c);
+    this.drawer = new GolDrawer(this.ctx);
     this.input = new UserInput(c);
     this.input.on('primary-drag', (movement) => this.movement_offset = this.movement_offset.add(movement));
   }
@@ -80,9 +84,9 @@ export class Application extends ApplicationBase {
   protected draw() {
     this.clear();
     
-    this.scale > 1 && this.drawGrid();
-    this.drawCells();
-    this.drawAxis();
+    this.scale > 1 && this.drawer.drawGrid(this.total_offset, this.scale);
+    this.drawer.drawCells(this.life, this.total_offset, this.scale);
+    this.drawer.drawAxis(this.total_offset);
 
     const focus_point = this.screenToGameSpace(new Vec2(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2));
 
@@ -90,72 +94,6 @@ export class Application extends ApplicationBase {
     this.ctx.fillText(`gen: ${this.step_count}`, 5, 20);
     this.ctx.fillText(`{ x: ${focus_point.x.toFixed(2)}, y: ${focus_point.y.toFixed(2)} }`, 5, 30);
     this.ctx.fillText(`scale: ${this.scale.toPrecision(3)}`, 5, 40);
-  }
-
-  private drawCells() {
-    this.ctx.save();
-    this.ctx.translate(this.total_offset.x, this.total_offset.y);
-    this.ctx.scale(this.scale, this.scale);
-
-    this.ctx.fillStyle = "gray";
-    this.life.forEach(({ x, y }) => {
-      this.ctx.fillRect(x, y, 1, 1);
-    });
-
-    this.ctx.restore();
-  }
-
-  private drawGrid() {
-    this.ctx.save();
-    this.ctx.translate(this.total_offset.x, this.total_offset.y);
-
-    const canvas_size = new Vec2(this.canvas.clientWidth, this.canvas.clientHeight);
-    const cell_count = canvas_size.divide(this.scale).map(Math.floor).add(Vec2.ONE);
-    const top_left = this.total_offset.divide(-this.scale).map(Math.floor);
-    const bot_right = top_left.add(cell_count);
-
-    const shade = 255 - 7.5 * (this.scale - 1);
-    const gridColor = `rgb(${shade}, ${shade}, ${shade})`;
-    
-    for (let i = top_left.x; i <= bot_right.x; i++) {
-      const top = Vec2.UNIT_I.scale(i * this.scale).substract(Vec2.UNIT_J.scale(this.total_offset.y));
-      const bot = top.add(Vec2.UNIT_J.scale(canvas_size.y));
-      this.drawLine(top, bot, gridColor);
-    }
-
-    for (let j = top_left.y; j <= bot_right.y; j++) {
-      const left = Vec2.UNIT_J.scale(j * this.scale).substract(Vec2.UNIT_I.scale(this.total_offset.x));
-      const right = left.add(Vec2.UNIT_I.scale(canvas_size.x));
-      this.drawLine(left, right, gridColor);
-    }
-
-    this.ctx.restore();
-  }
-
-  private drawAxis() {
-    this.ctx.save();
-    this.ctx.translate(this.total_offset.x, this.total_offset.y);
-
-    const canvas_size = new Vec2(this.canvas.clientWidth, this.canvas.clientHeight);
-
-    const left = Vec2.ZERO.substract(Vec2.UNIT_I.scale(this.total_offset.x));
-    const right = left.add(Vec2.UNIT_I.scale(canvas_size.x));
-
-    const top = Vec2.ZERO.substract(Vec2.UNIT_J.scale(this.total_offset.y));
-    const bot = top.add(Vec2.UNIT_J.scale(canvas_size.y));
-
-    this.drawLine(left, right, "red");
-    this.drawLine(top, bot, "blue");
-
-    this.ctx.restore();
-  }
-
-  private drawLine(from: Vec2, to: Vec2, color = "black") {
-    this.ctx.beginPath();
-    this.ctx.moveTo(from.x, from.y);
-    this.ctx.lineTo(to.x, to.y);
-    this.ctx.strokeStyle = color;
-    this.ctx.stroke();
   }
 
   private screenToGameSpace(p: Vec2) {
