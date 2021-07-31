@@ -1,6 +1,13 @@
+import { Emitter } from "./TypedEventEmitter";
+import { Vec2 } from "./Vec2";
 
-export class UserInput {
+interface UserInputEvents {
+  'primary-drag': (movement: Vec2) => void;
+}
+
+export class UserInput extends Emitter<UserInputEvents> {
   get keys() { return makeReadonly(this._keys); }
+  get pointer() { return makeReadonly(this._pointer); }
 
   private _keys = {
     up: false,
@@ -11,14 +18,26 @@ export class UserInput {
     e: false
   }
 
-  constructor(private element: HTMLElement) {
-    this.element.addEventListener('keydown', this.keydown);
-    this.element.addEventListener('keyup', this.keyup);
+  private _pointer = {
+    position: Vec2.ZERO,
+    primary_drag: Vec2.ZERO,
+
+    primary: false,
+    secondary: false,
+    auxiliary: false
   }
 
-  public clearListeners() {
-    this.element.removeEventListener('keyup', this.keyup);
-    this.element.removeEventListener('keydown', this.keydown);
+  private _pointer_meta = {
+    primary_drag_begin: Vec2.ZERO
+  }
+
+  constructor(private element: HTMLElement) {
+    super();
+    this.element.addEventListener('keydown', this.keydown);
+    this.element.addEventListener('keyup', this.keyup);
+    this.element.addEventListener('pointermove', this.pointermove);
+    this.element.addEventListener('pointerdown', this.pointerdown);
+    this.element.addEventListener('pointerup', this.pointerup);
   }
 
   private keydown = (e: KeyboardEvent) => {
@@ -72,6 +91,52 @@ export class UserInput {
       case "e":
         this._keys.e = false;
         break;
+    }
+  }
+
+  private pointermove = (e: PointerEvent) => {
+    e.preventDefault();
+
+    this._pointer.position = new Vec2(e.clientX, e.clientY);
+
+    if (this._pointer.primary) {
+      this._pointer.primary_drag = this._pointer.position.substract(this._pointer_meta.primary_drag_begin);
+    }
+  }
+
+  private pointerdown = (e: PointerEvent) => {
+    e.preventDefault();
+
+    switch (e.button) {
+      case 0:
+        this._pointer.primary = true;
+        this._pointer_meta.primary_drag_begin = new Vec2(e.clientX, e.clientY);
+        break;
+      case 1:
+        this._pointer.auxiliary = true;
+      break;
+      case 2:
+        this._pointer.secondary = true;
+      break;
+    }
+  }
+  
+  private pointerup = (e: PointerEvent) => {
+    e.preventDefault();
+
+    switch (e.button) {
+      case 0:
+        this._pointer.primary = false;
+        this.emit('primary-drag', this._pointer.primary_drag);
+        this._pointer_meta.primary_drag_begin = Vec2.ZERO;
+        this._pointer.primary_drag = Vec2.ZERO;
+        break;
+      case 1:
+        this._pointer.auxiliary = false;
+      break;
+      case 2:
+        this._pointer.secondary = false;
+      break;
     }
   }
 }

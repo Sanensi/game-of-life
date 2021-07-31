@@ -5,13 +5,20 @@ import { UserInput } from "@lib/UserInput";
 
 export class Application extends ApplicationBase {
   private life: Vec2[] = [];
-  private stepsPerSecond = 10;
+  private stepsPerSecond = 0;
   private previousStep_ts = 0;
 
   private step_count = 0;
 
   private scale = 10;
-  private offset = Vec2.ZERO;
+  private base_offset = Vec2.ZERO;
+  private movement_offset = Vec2.ZERO;
+
+  private get total_offset() {
+    return this.base_offset
+      .add(this.movement_offset)
+      .add(this.input.pointer.primary_drag);
+  }
 
   private input: UserInput;
   private speed = 10;
@@ -20,6 +27,7 @@ export class Application extends ApplicationBase {
   constructor(c: HTMLCanvasElement) {
     super(c);
     this.input = new UserInput(c);
+    this.input.on('primary-drag', (movement) => this.movement_offset = this.movement_offset.add(movement));
   }
 
   protected start() {
@@ -40,7 +48,7 @@ export class Application extends ApplicationBase {
       this.life.push(new Vec2(x, y));
     }
 
-    this.offset = new Vec2(this.canvas.clientWidth/2, this.canvas.clientHeight/2);
+    this.base_offset = new Vec2(this.canvas.clientWidth/2, this.canvas.clientHeight/2);
   }
 
   protected update(ts: number) {
@@ -50,22 +58,22 @@ export class Application extends ApplicationBase {
       this.step_count++;
     }
 
-    if (this.input.keys.right) this.offset = this.offset.substract(Vec2.UNIT_I.scale(this.speed));
-    if (this.input.keys.left) this.offset = this.offset.add(Vec2.UNIT_I.scale(this.speed));
-    if (this.input.keys.up) this.offset = this.offset.add(Vec2.UNIT_J.scale(this.speed));
-    if (this.input.keys.down) this.offset = this.offset.substract(Vec2.UNIT_J.scale(this.speed));
+    if (this.input.keys.right) this.movement_offset = this.movement_offset.substract(Vec2.UNIT_I.scale(this.speed));
+    if (this.input.keys.left) this.movement_offset = this.movement_offset.add(Vec2.UNIT_I.scale(this.speed));
+    if (this.input.keys.up) this.movement_offset = this.movement_offset.add(Vec2.UNIT_J.scale(this.speed));
+    if (this.input.keys.down) this.movement_offset = this.movement_offset.substract(Vec2.UNIT_J.scale(this.speed));
 
     const focus_point = this.screenToGameSpace(new Vec2(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2));
     
     if (this.input.keys.e) {
       const zoom_offset = focus_point.scale(this.scale);
       this.scale *= this.zoom_speed;
-      this.offset = this.offset.substract(zoom_offset.scale(this.zoom_speed).substract(zoom_offset));
+      this.movement_offset = this.movement_offset.substract(zoom_offset.scale(this.zoom_speed).substract(zoom_offset));
     }
     if (this.input.keys.q) {
       this.scale /= this.zoom_speed;
       const zoom_offset = focus_point.scale(this.scale);
-      this.offset = this.offset.add(zoom_offset.scale(this.zoom_speed).substract(zoom_offset));
+      this.movement_offset = this.movement_offset.add(zoom_offset.scale(this.zoom_speed).substract(zoom_offset));
     }
   }
 
@@ -86,7 +94,7 @@ export class Application extends ApplicationBase {
 
   private drawCells() {
     this.ctx.save();
-    this.ctx.translate(this.offset.x, this.offset.y);
+    this.ctx.translate(this.total_offset.x, this.total_offset.y);
     this.ctx.scale(this.scale, this.scale);
 
     this.ctx.fillStyle = "gray";
@@ -99,24 +107,24 @@ export class Application extends ApplicationBase {
 
   private drawGrid() {
     this.ctx.save();
-    this.ctx.translate(this.offset.x, this.offset.y);
+    this.ctx.translate(this.total_offset.x, this.total_offset.y);
 
     const canvas_size = new Vec2(this.canvas.clientWidth, this.canvas.clientHeight);
     const cell_count = canvas_size.divide(this.scale).map(Math.floor).add(Vec2.ONE);
-    const top_left = this.offset.divide(-this.scale).map(Math.floor);
+    const top_left = this.total_offset.divide(-this.scale).map(Math.floor);
     const bot_right = top_left.add(cell_count);
 
     const shade = 255 - 7.5 * (this.scale - 1);
     const gridColor = `rgb(${shade}, ${shade}, ${shade})`;
     
     for (let i = top_left.x; i <= bot_right.x; i++) {
-      const top = Vec2.UNIT_I.scale(i * this.scale).substract(Vec2.UNIT_J.scale(this.offset.y));
+      const top = Vec2.UNIT_I.scale(i * this.scale).substract(Vec2.UNIT_J.scale(this.total_offset.y));
       const bot = top.add(Vec2.UNIT_J.scale(canvas_size.y));
       this.drawLine(top, bot, gridColor);
     }
 
     for (let j = top_left.y; j <= bot_right.y; j++) {
-      const left = Vec2.UNIT_J.scale(j * this.scale).substract(Vec2.UNIT_I.scale(this.offset.x));
+      const left = Vec2.UNIT_J.scale(j * this.scale).substract(Vec2.UNIT_I.scale(this.total_offset.x));
       const right = left.add(Vec2.UNIT_I.scale(canvas_size.x));
       this.drawLine(left, right, gridColor);
     }
@@ -126,14 +134,14 @@ export class Application extends ApplicationBase {
 
   private drawAxis() {
     this.ctx.save();
-    this.ctx.translate(this.offset.x, this.offset.y);
+    this.ctx.translate(this.total_offset.x, this.total_offset.y);
 
     const canvas_size = new Vec2(this.canvas.clientWidth, this.canvas.clientHeight);
 
-    const left = Vec2.ZERO.substract(Vec2.UNIT_I.scale(this.offset.x));
+    const left = Vec2.ZERO.substract(Vec2.UNIT_I.scale(this.total_offset.x));
     const right = left.add(Vec2.UNIT_I.scale(canvas_size.x));
 
-    const top = Vec2.ZERO.substract(Vec2.UNIT_J.scale(this.offset.y));
+    const top = Vec2.ZERO.substract(Vec2.UNIT_J.scale(this.total_offset.y));
     const bot = top.add(Vec2.UNIT_J.scale(canvas_size.y));
 
     this.drawLine(left, right, "red");
@@ -151,6 +159,6 @@ export class Application extends ApplicationBase {
   }
 
   private screenToGameSpace(p: Vec2) {
-    return p.substract(this.offset).scale(1 / this.scale);
+    return p.substract(this.total_offset).scale(1 / this.scale);
   }
 }
