@@ -16,5 +16,6 @@ module.exports = merge(common, {
     contentBase: outputPath,
     watchContentBase: true,
     historyApiFallback: true,
+    host: '0.0.0.0'
   }
 });

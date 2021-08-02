@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "webpack serve --config webpack.dev.js --hot",
+    "build": "webpack --config webpack.prod.js --progress",
     "test": "jest"
   },
   "devDependencies": {
