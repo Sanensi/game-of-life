@@ -3,6 +3,8 @@ import { Vec2 } from "./Vec2";
 
 interface UserInputEvents {
   'primary-drag': (movement: Vec2) => void;
+  'pinch-begin': (p1: Vec2, p2: Vec2) => void;
+  'pinch-move': (p1: Vec2, p2: Vec2) => void;
 }
 
 export class UserInput extends Emitter<UserInputEvents> {
@@ -28,7 +30,8 @@ export class UserInput extends Emitter<UserInputEvents> {
   }
 
   private _pointer_meta = {
-    primary_drag_begin: Vec2.ZERO
+    primary_drag_begin: Vec2.ZERO,
+    positions: new Map<number, Vec2>()
   }
 
   constructor(private element: HTMLElement) {
@@ -38,6 +41,9 @@ export class UserInput extends Emitter<UserInputEvents> {
     this.element.addEventListener('pointermove', this.pointermove);
     this.element.addEventListener('pointerdown', this.pointerdown);
     this.element.addEventListener('pointerup', this.pointerup);
+    this.element.addEventListener('pointerleave', this.pointerup);
+    this.element.addEventListener('pointerout', this.pointerup);
+    this.element.addEventListener('pointercancel', this.pointerup);
   }
 
   private keydown = (e: KeyboardEvent) => {
@@ -97,10 +103,16 @@ export class UserInput extends Emitter<UserInputEvents> {
   private pointermove = (e: PointerEvent) => {
     e.preventDefault();
 
-    this._pointer.position = new Vec2(e.clientX, e.clientY);
+    this._pointer_meta.positions.set(e.pointerId, new Vec2(e.clientX, e.clientY));
 
-    if (this._pointer.primary) {
-      this._pointer.primary_drag = this._pointer.position.substract(this._pointer_meta.primary_drag_begin);
+    if (this._pointer.primary && this._pointer_meta.positions.size === 1) {
+      this._pointer.position = new Vec2(e.clientX, e.clientY);
+      this._pointer.primary_drag = this._pointer.position.substract(this._pointer_meta.primary_drag_begin);      
+    }
+
+    if (this._pointer_meta.positions.size === 2) {
+      const [p1, p2] = this._pointer_meta.positions.values();
+      this.emit('pinch-move', p1, p2);
     }
   }
 
@@ -111,6 +123,7 @@ export class UserInput extends Emitter<UserInputEvents> {
       case 0:
         this._pointer.primary = true;
         this._pointer_meta.primary_drag_begin = new Vec2(e.clientX, e.clientY);
+        this._pointer_meta.positions.set(e.pointerId, new Vec2(e.clientX, e.clientY));
         break;
       case 1:
         this._pointer.auxiliary = true;
@@ -118,6 +131,11 @@ export class UserInput extends Emitter<UserInputEvents> {
       case 2:
         this._pointer.secondary = true;
       break;
+    }
+
+    if (this._pointer_meta.positions.size === 2) {
+      const [p1, p2] = this._pointer_meta.positions.values();
+      this.emit('pinch-begin', p1, p2);
     }
   }
   
@@ -130,6 +148,7 @@ export class UserInput extends Emitter<UserInputEvents> {
         this.emit('primary-drag', this._pointer.primary_drag);
         this._pointer_meta.primary_drag_begin = Vec2.ZERO;
         this._pointer.primary_drag = Vec2.ZERO;
+        this._pointer_meta.positions.delete(e.pointerId);
         break;
       case 1:
         this._pointer.auxiliary = false;

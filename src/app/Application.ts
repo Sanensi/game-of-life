@@ -16,6 +16,11 @@ export class Application extends ApplicationBase {
   private scale = 10;
   private base_offset = Vec2.ZERO;
   private movement_offset = Vec2.ZERO;
+  private previous_pinch = 0;
+
+  private readonly movement_speed = 10;
+  private readonly keyboard_zoom_speed = 1.05;
+  private readonly wheel_zoom_speed = 1.10;
 
   private get total_offset() {
     return this.base_offset
@@ -23,16 +28,31 @@ export class Application extends ApplicationBase {
       .add(this.input.pointer.primary_drag);
   }
 
-  private speed = 10;
-  private keyboard_zoom_speed = 1.05;
-  private wheel_zoom_speed = 1.10;
-
   constructor(c: HTMLCanvasElement) {
     super(c);
     this.drawer = new GolDrawer(this.ctx);
 
     this.input = new UserInput(c);
-    this.input.on('primary-drag', (movement) => this.movement_offset = this.movement_offset.add(movement));
+    
+    this.input.on('primary-drag', (movement) => {
+      this.movement_offset = this.movement_offset.add(movement);
+    });
+    
+    this.input.on('pinch-begin', (p1, p2) => {
+      this.previous_pinch = p2.substract(p1).length();
+    });
+
+    this.input.on('pinch-move', (p1, p2) => {
+      const center = p1.add(p2.substract(p1).scale(0.5));
+      const focus = this.screenToGameSpace(center);
+      const pinch = p2.substract(p1).length();
+      const factor = pinch / this.previous_pinch;
+
+      this.zoomIn(focus, factor);
+
+      this.previous_pinch = pinch;
+    });
+
     this.canvas.addEventListener('wheel', (e) => {
       const focus = this.screenToGameSpace(new Vec2(e.clientX, e.clientY));
       if (e.deltaY < 0) this.zoomIn(focus, this.wheel_zoom_speed);
@@ -68,10 +88,10 @@ export class Application extends ApplicationBase {
       this.step_count++;
     }
 
-    if (this.input.keys.right) this.movement_offset = this.movement_offset.substract(Vec2.UNIT_I.scale(this.speed));
-    if (this.input.keys.left) this.movement_offset = this.movement_offset.add(Vec2.UNIT_I.scale(this.speed));
-    if (this.input.keys.up) this.movement_offset = this.movement_offset.add(Vec2.UNIT_J.scale(this.speed));
-    if (this.input.keys.down) this.movement_offset = this.movement_offset.substract(Vec2.UNIT_J.scale(this.speed));
+    if (this.input.keys.right) this.movement_offset = this.movement_offset.substract(Vec2.UNIT_I.scale(this.movement_speed));
+    if (this.input.keys.left) this.movement_offset = this.movement_offset.add(Vec2.UNIT_I.scale(this.movement_speed));
+    if (this.input.keys.up) this.movement_offset = this.movement_offset.add(Vec2.UNIT_J.scale(this.movement_speed));
+    if (this.input.keys.down) this.movement_offset = this.movement_offset.substract(Vec2.UNIT_J.scale(this.movement_speed));
 
     const focus = this.screenToGameSpace(new Vec2(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2));  
     if (this.input.keys.e) this.zoomIn(focus, this.keyboard_zoom_speed);
@@ -93,16 +113,16 @@ export class Application extends ApplicationBase {
     this.ctx.fillText(`scale: ${this.scale.toPrecision(3)}`, 5, 40);
   }
 
-  private zoomIn(focus: Vec2, speed: number) {
+  private zoomIn(focus: Vec2, factor: number) {
     const zoom_offset = focus.scale(this.scale);
-    this.scale *= speed;
-    this.movement_offset = this.movement_offset.substract(zoom_offset.scale(speed).substract(zoom_offset));
+    this.scale *= factor;
+    this.movement_offset = this.movement_offset.substract(zoom_offset.scale(factor).substract(zoom_offset));
   }
 
-  private zoomOut(focus: Vec2, speed: number) {
-    this.scale /= speed;
+  private zoomOut(focus: Vec2, factor: number) {
+    this.scale /= factor;
     const zoom_offset = focus.scale(this.scale);
-    this.movement_offset = this.movement_offset.add(zoom_offset.scale(speed).substract(zoom_offset));
+    this.movement_offset = this.movement_offset.add(zoom_offset.scale(factor).substract(zoom_offset));
   }
 
   private screenToGameSpace(p: Vec2) {
