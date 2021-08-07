@@ -107,7 +107,7 @@ export class Application extends ApplicationBase {
 
     const focus_point = this.screenToGameSpace(new Vec2(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2));
 
-    this.ctx.fillText(`fps: ${(1000 / this.delta).toFixed(1)}`, 5, 10);
+    this.ctx.fillText(`fps: ${(1 / this.delta_s).toFixed(1)}`, 5, 10);
     this.ctx.fillText(`gen: ${this.step_count}`, 5, 20);
     this.ctx.fillText(`{ x: ${focus_point.x.toFixed(2)}, y: ${focus_point.y.toFixed(2)} }`, 5, 30);
     this.ctx.fillText(`scale: ${this.scale.toPrecision(3)}`, 5, 40);
