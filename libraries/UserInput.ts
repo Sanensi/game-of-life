@@ -2,14 +2,12 @@ import { Emitter } from "./TypedEventEmitter";
 import { Vec2 } from "./Vec2";
 
 interface UserInputEvents {
-  'primary-drag': (movement: Vec2) => void;
-  'pinch-begin': (p1: Vec2, p2: Vec2) => void;
-  'pinch-move': (p1: Vec2, p2: Vec2) => void;
+  'primary-drag': (delta: Vec2) => void;
+  'pinch': (pivot: Vec2, factor: number) => void;
 }
 
 export class UserInput extends Emitter<UserInputEvents> {
   get keys() { return makeReadonly(this._keys); }
-  get pointer() { return makeReadonly(this._pointer); }
 
   private _keys = {
     up: false,
@@ -20,18 +18,10 @@ export class UserInput extends Emitter<UserInputEvents> {
     e: false
   }
 
-  private _pointer = {
-    position: Vec2.ZERO,
-    primary_drag: Vec2.ZERO,
-
-    primary: false,
-    secondary: false,
-    auxiliary: false
-  }
-
-  private _pointer_meta = {
-    primary_drag_begin: Vec2.ZERO,
-    positions: new Map<number, Vec2>()
+  private pointer = {
+    positions: new Map<number, Vec2>(),
+    previous_primary: Vec2.ZERO,
+    previous_pinch: 0
   }
 
   constructor(private element: HTMLElement) {
@@ -100,62 +90,57 @@ export class UserInput extends Emitter<UserInputEvents> {
     }
   }
 
-  private pointermove = (e: PointerEvent) => {
+  private pointerdown = (e: PointerEvent) => {
     e.preventDefault();
+    e.stopPropagation();
 
-    this._pointer_meta.positions.set(e.pointerId, new Vec2(e.clientX, e.clientY));
+    const position = new Vec2(e.clientX, e.clientY)
+    this.pointer.positions.set(e.pointerId, position);
 
-    if (this._pointer.primary && this._pointer_meta.positions.size === 1) {
-      this._pointer.position = new Vec2(e.clientX, e.clientY);
-      this._pointer.primary_drag = this._pointer.position.substract(this._pointer_meta.primary_drag_begin);      
+    if (this.pointer.positions.size === 1) {
+      if (e.buttons === 1) {
+        this.pointer.previous_primary = position;
+      }
     }
-
-    if (this._pointer_meta.positions.size === 2) {
-      const [p1, p2] = this._pointer_meta.positions.values();
-      this.emit('pinch-move', p1, p2);
+    else if (this.pointer.positions.size === 2) {
+      const [p1, p2] = this.pointer.positions.values();
+      this.pointer.previous_pinch = p2.substract(p1).length();
     }
   }
 
-  private pointerdown = (e: PointerEvent) => {
+  private pointermove = (e: PointerEvent) => {
     e.preventDefault();
+    e.stopPropagation();
 
-    switch (e.button) {
-      case 0:
-        this._pointer.primary = true;
-        this._pointer_meta.primary_drag_begin = new Vec2(e.clientX, e.clientY);
-        this._pointer_meta.positions.set(e.pointerId, new Vec2(e.clientX, e.clientY));
-        break;
-      case 1:
-        this._pointer.auxiliary = true;
-      break;
-      case 2:
-        this._pointer.secondary = true;
-      break;
+    const position = new Vec2(e.clientX, e.clientY);
+    this.pointer.positions.set(e.pointerId, position);
+
+    if (this.pointer.positions.size === 1) {
+      if (e.buttons === 1) {
+        const delta = position.substract(this.pointer.previous_primary);
+        this.pointer.previous_primary = position;
+        this.emit('primary-drag', delta);
+      }
     }
-
-    if (this._pointer_meta.positions.size === 2) {
-      const [p1, p2] = this._pointer_meta.positions.values();
-      this.emit('pinch-begin', p1, p2);
+    else if (this.pointer.positions.size === 2) {
+      const [p1, p2] = this.pointer.positions.values();
+      const center = p1.add(p2.substract(p1).scale(0.5));
+      const pinch = p2.substract(p1).length();
+      const factor = pinch / this.pointer.previous_pinch;
+      this.pointer.previous_pinch = pinch;
+      this.emit('pinch', center, factor);
     }
   }
   
   private pointerup = (e: PointerEvent) => {
     e.preventDefault();
+    e.stopPropagation();
 
-    switch (e.button) {
-      case 0:
-        this._pointer.primary = false;
-        this.emit('primary-drag', this._pointer.primary_drag);
-        this._pointer_meta.primary_drag_begin = Vec2.ZERO;
-        this._pointer.primary_drag = Vec2.ZERO;
-        this._pointer_meta.positions.delete(e.pointerId);
-        break;
-      case 1:
-        this._pointer.auxiliary = false;
-      break;
-      case 2:
-        this._pointer.secondary = false;
-      break;
+    this.pointer.positions.delete(e.pointerId);
+
+    if (this.pointer.positions.size === 1) {
+        const [p1] = this.pointer.positions.values();
+        this.pointer.previous_primary = p1;
     }
   }
 }

@@ -16,41 +16,27 @@ export class Application extends ApplicationBase {
   private scale = 10;
   private base_offset = Vec2.ZERO;
   private movement_offset = Vec2.ZERO;
-  private previous_pinch = 0;
 
   private readonly movement_speed = 10;
   private readonly keyboard_zoom_speed = 1.05;
   private readonly wheel_zoom_speed = 1.10;
 
   private get total_offset() {
-    return this.base_offset
-      .add(this.movement_offset)
-      .add(this.input.pointer.primary_drag);
+    return this.base_offset.add(this.movement_offset);
   }
 
   constructor(c: HTMLCanvasElement) {
     super(c);
     this.drawer = new GolDrawer(this.ctx);
-
     this.input = new UserInput(c);
     
-    this.input.on('primary-drag', (movement) => {
-      this.movement_offset = this.movement_offset.add(movement);
-    });
-    
-    this.input.on('pinch-begin', (p1, p2) => {
-      this.previous_pinch = p2.substract(p1).length();
+    this.input.on('primary-drag', (delta) => {
+      this.movement_offset = this.movement_offset.add(delta);
     });
 
-    this.input.on('pinch-move', (p1, p2) => {
-      const center = p1.add(p2.substract(p1).scale(0.5));
-      const focus = this.screenToGameSpace(center);
-      const pinch = p2.substract(p1).length();
-      const factor = pinch / this.previous_pinch;
-
+    this.input.on('pinch', (pivot, factor) => {
+      const focus = this.screenToGameSpace(pivot);
       this.zoomIn(focus, factor);
-
-      this.previous_pinch = pinch;
     });
 
     this.canvas.addEventListener('wheel', (e) => {
