@@ -2,24 +2,48 @@ import { ApplicationBase } from "@lib/ApplicationBase";
 import { Vec2 } from "@lib/Vec2";
 import { simulateLife } from "@gol/GameOfLife";
 import { UserInput } from "@lib/UserInput";
+import { GolDrawer } from "./GolDrawer";
 
 export class Application extends ApplicationBase {
-  private life: Vec2[] = [];
-  private stepsPerSecond = 10;
-  private previousStep_ts = 0;
+  private readonly drawer: GolDrawer;
+  private input: UserInput;
 
+  private life: Vec2[] = [];
+  private stepsPerSecond = 0;
+  private previousStep_ts = 0;
   private step_count = 0;
 
   private scale = 10;
-  private offset = Vec2.ZERO;
+  private base_offset = Vec2.ZERO;
+  private movement_offset = Vec2.ZERO;
 
-  private input: UserInput;
-  private speed = 10;
-  private zoom_speed = 1.05;
+  private readonly movement_speed = 10;
+  private readonly keyboard_zoom_speed = 1.05;
+  private readonly wheel_zoom_speed = 1.10;
+
+  private get total_offset() {
+    return this.base_offset.add(this.movement_offset);
+  }
 
   constructor(c: HTMLCanvasElement) {
     super(c);
+    this.drawer = new GolDrawer(this.ctx);
     this.input = new UserInput(c);
+    
+    this.input.on('primary-drag', (delta) => {
+      this.movement_offset = this.movement_offset.add(delta);
+    });
+
+    this.input.on('pinch', (pivot, factor) => {
+      const focus = this.screenToGameSpace(pivot);
+      this.zoomIn(focus, factor);
+    });
+
+    this.canvas.addEventListener('wheel', (e) => {
+      const focus = this.screenToGameSpace(new Vec2(e.clientX, e.clientY));
+      if (e.deltaY < 0) this.zoomIn(focus, this.wheel_zoom_speed);
+      if (e.deltaY > 0) this.zoomOut(focus, this.wheel_zoom_speed);
+    });
   }
 
   protected start() {
@@ -28,13 +52,19 @@ export class Application extends ApplicationBase {
 
     for (let i = 0; i <= cells; i++) {
       // cell position in [-25, 25[
-      const x = Math.floor(50 * Math.random()) - 25;
-      const y = Math.floor(50 * Math.random()) - 25;
+      // const x = Math.floor(50 * Math.random()) - 25;
+      // const y = Math.floor(50 * Math.random()) - 25;
+      
+      const r = Math.floor(25 * Math.random());
+      const theta = Math.random() * 2 * Math.PI;
+
+      const x = Math.floor(Math.cos(theta) * r);
+      const y = Math.floor(Math.sin(theta) * r);
 
       this.life.push(new Vec2(x, y));
     }
 
-    this.offset = new Vec2(this.canvas.clientWidth/2, this.canvas.clientHeight/2);
+    this.base_offset = new Vec2(this.canvas.clientWidth/2, this.canvas.clientHeight/2);
   }
 
   protected update(ts: number) {
@@ -44,107 +74,44 @@ export class Application extends ApplicationBase {
       this.step_count++;
     }
 
-    if (this.input.keys.right) this.offset = this.offset.substract(Vec2.UNIT_I.scale(this.speed));
-    if (this.input.keys.left) this.offset = this.offset.add(Vec2.UNIT_I.scale(this.speed));
-    if (this.input.keys.up) this.offset = this.offset.add(Vec2.UNIT_J.scale(this.speed));
-    if (this.input.keys.down) this.offset = this.offset.substract(Vec2.UNIT_J.scale(this.speed));
+    if (this.input.keys.right) this.movement_offset = this.movement_offset.substract(Vec2.UNIT_I.scale(this.movement_speed));
+    if (this.input.keys.left) this.movement_offset = this.movement_offset.add(Vec2.UNIT_I.scale(this.movement_speed));
+    if (this.input.keys.up) this.movement_offset = this.movement_offset.add(Vec2.UNIT_J.scale(this.movement_speed));
+    if (this.input.keys.down) this.movement_offset = this.movement_offset.substract(Vec2.UNIT_J.scale(this.movement_speed));
 
-    const focus_point = this.screenToGameSpace(new Vec2(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2));
-    
-    if (this.input.keys.e) {
-      const zoom_offset = focus_point.scale(this.scale);
-      this.scale *= this.zoom_speed;
-      this.offset = this.offset.substract(zoom_offset.scale(this.zoom_speed).substract(zoom_offset));
-    }
-    if (this.input.keys.q) {
-      this.scale /= this.zoom_speed;
-      const zoom_offset = focus_point.scale(this.scale);
-      this.offset = this.offset.add(zoom_offset.scale(this.zoom_speed).substract(zoom_offset));
-    }
+    const focus = this.screenToGameSpace(new Vec2(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2));  
+    if (this.input.keys.e) this.zoomIn(focus, this.keyboard_zoom_speed);
+    if (this.input.keys.q) this.zoomOut(focus, this.keyboard_zoom_speed);
   }
 
   protected draw() {
     this.clear();
     
-    this.scale > 1 && this.drawGrid();
-    this.drawCells();
-    this.drawAxis();
+    this.scale > 1 && this.drawer.drawGrid(this.total_offset, this.scale);
+    this.drawer.drawCells(this.life, this.total_offset, this.scale);
+    this.drawer.drawAxis(this.total_offset);
 
     const focus_point = this.screenToGameSpace(new Vec2(this.canvas.clientWidth / 2, this.canvas.clientHeight / 2));
 
-    this.ctx.fillText(`fps: ${(1000 / this.delta).toFixed(1)}`, 5, 10);
+    this.ctx.fillText(`fps: ${(1 / this.delta_s).toFixed(1)}`, 5, 10);
     this.ctx.fillText(`gen: ${this.step_count}`, 5, 20);
     this.ctx.fillText(`{ x: ${focus_point.x.toFixed(2)}, y: ${focus_point.y.toFixed(2)} }`, 5, 30);
     this.ctx.fillText(`scale: ${this.scale.toPrecision(3)}`, 5, 40);
   }
 
-  private drawCells() {
-    this.ctx.save();
-    this.ctx.translate(this.offset.x, this.offset.y);
-    this.ctx.scale(this.scale, this.scale);
-
-    this.ctx.fillStyle = "gray";
-    this.life.forEach(({ x, y }) => {
-      this.ctx.fillRect(x, y, 1, 1);
-    });
-
-    this.ctx.restore();
+  private zoomIn(focus: Vec2, factor: number) {
+    const zoom_offset = focus.scale(this.scale);
+    this.scale *= factor;
+    this.movement_offset = this.movement_offset.substract(zoom_offset.scale(factor).substract(zoom_offset));
   }
 
-  private drawGrid() {
-    this.ctx.save();
-    this.ctx.translate(this.offset.x, this.offset.y);
-
-    const canvas_size = new Vec2(this.canvas.clientWidth, this.canvas.clientHeight);
-    const cell_count = canvas_size.divide(this.scale).map(Math.floor).add(Vec2.ONE);
-    const top_left = this.offset.divide(-this.scale).map(Math.floor);
-    const bot_right = top_left.add(cell_count);
-
-    const shade = 255 - 7.5 * (this.scale - 1);
-    const gridColor = `rgb(${shade}, ${shade}, ${shade})`;
-    
-    for (let i = top_left.x; i <= bot_right.x; i++) {
-      const top = Vec2.UNIT_I.scale(i * this.scale).substract(Vec2.UNIT_J.scale(this.offset.y));
-      const bot = top.add(Vec2.UNIT_J.scale(canvas_size.y));
-      this.drawLine(top, bot, gridColor);
-    }
-
-    for (let j = top_left.y; j <= bot_right.y; j++) {
-      const left = Vec2.UNIT_J.scale(j * this.scale).substract(Vec2.UNIT_I.scale(this.offset.x));
-      const right = left.add(Vec2.UNIT_I.scale(canvas_size.x));
-      this.drawLine(left, right, gridColor);
-    }
-
-    this.ctx.restore();
-  }
-
-  private drawAxis() {
-    this.ctx.save();
-    this.ctx.translate(this.offset.x, this.offset.y);
-
-    const canvas_size = new Vec2(this.canvas.clientWidth, this.canvas.clientHeight);
-
-    const left = Vec2.ZERO.substract(Vec2.UNIT_I.scale(this.offset.x));
-    const right = left.add(Vec2.UNIT_I.scale(canvas_size.x));
-
-    const top = Vec2.ZERO.substract(Vec2.UNIT_J.scale(this.offset.y));
-    const bot = top.add(Vec2.UNIT_J.scale(canvas_size.y));
-
-    this.drawLine(left, right, "red");
-    this.drawLine(top, bot, "blue");
-
-    this.ctx.restore();
-  }
-
-  private drawLine(from: Vec2, to: Vec2, color = "black") {
-    this.ctx.beginPath();
-    this.ctx.moveTo(from.x, from.y);
-    this.ctx.lineTo(to.x, to.y);
-    this.ctx.strokeStyle = color;
-    this.ctx.stroke();
+  private zoomOut(focus: Vec2, factor: number) {
+    this.scale /= factor;
+    const zoom_offset = focus.scale(this.scale);
+    this.movement_offset = this.movement_offset.add(zoom_offset.scale(factor).substract(zoom_offset));
   }
 
   private screenToGameSpace(p: Vec2) {
-    return p.substract(this.offset).scale(1 / this.scale);
+    return p.substract(this.total_offset).scale(1 / this.scale);
   }
 }

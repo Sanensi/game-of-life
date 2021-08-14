@@ -3,7 +3,8 @@ export abstract class ApplicationBase {
   protected ctx: CanvasRenderingContext2D;
   
   private previous_ts = 0;
-  protected delta = 0;
+  protected delta_ms = 0;
+  protected get delta_s() { return this.delta_ms / 1000; }
 
   constructor(c: HTMLCanvasElement) {
     this.canvas = c;
@@ -27,7 +28,7 @@ export abstract class ApplicationBase {
   }
 
   private updateDelta(ts: number) {
-    this.delta = ts - this.previous_ts;
+    this.delta_ms = ts - this.previous_ts;
     this.previous_ts = ts;
   }
 
